@@ -78,7 +78,7 @@ canvas {
 
 <body>
 
-<h1>記憶のブロック崩し</h1>
+<h1>記憶探しのブロック崩し</h1>
 
 <p>
     ブロックを壊すたび、失われた記憶が蘇る。
@@ -457,10 +457,24 @@ canvas.addEventListener(
         const rect =
             canvas.getBoundingClientRect();
 
+        // スマホ画面上の座標を
+        // ゲーム内部の600px座標に変換
+        const scaleX =
+            canvas.width / rect.width;
+
         paddle.x =
-            e.touches[0].clientX -
-            rect.left -
-            paddle.width / 2;
+            (e.touches[0].clientX - rect.left) * scaleX
+            - paddle.width / 2;
+
+        // 左右の端からはみ出さないようにする
+        if(paddle.x < 0){
+            paddle.x = 0;
+        }
+
+        if(paddle.x + paddle.width > canvas.width){
+            paddle.x =
+                canvas.width - paddle.width;
+        }
 
     },
     { passive: false }
