@@ -1,0 +1,566 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>記憶探しのブロック崩し</title>
+
+<style>
+body {
+    margin: 0;
+    background: #111;
+    color: white;
+    font-family: sans-serif;
+    text-align: center;
+}
+
+h1 {
+    margin: 20px 0 5px;
+}
+
+p {
+    color: #aaa;
+}
+
+canvas {
+    display: none;
+    margin: 20px auto;
+    background: #000;
+    border: 1px solid #555;
+    max-width: 95%;
+}
+
+#memory {
+    max-width: 600px;
+    margin: 20px auto;
+    padding: 15px;
+    text-align: left;
+}
+
+.memory-item {
+    padding: 10px;
+    border-bottom: 1px solid #333;
+}
+
+.locked {
+    color: #555;
+}
+
+#message {
+    font-size: 32px;
+    font-weight: bold;
+    margin: 20px;
+}
+
+#resetButton {
+    font-size: 18px;
+    padding: 10px 25px;
+    margin: 10px;
+    cursor: pointer;
+}
+
+#startVideo,
+#clearVideo {
+    display: block;
+    width: 600px;
+    max-width: 95%;
+    margin: 20px auto;
+    pointer-events: none;
+}
+
+#clearVideo {
+    display: none;
+}
+</style>
+</head>
+
+<body>
+
+<h1>記憶のブロック崩し</h1>
+
+<p>
+    ブロックを壊すたび、失われた記憶が蘇る。
+</p>
+
+<video id="startVideo" muted playsinline>
+    <source src="start.mp4" type="video/mp4">
+</video>
+
+<video id="clearVideo" muted playsinline>
+    <source src="clear.mp4" type="video/mp4">
+</video>
+
+<canvas id="game" width="600" height="400"></canvas>
+<div id="message"></div>
+
+<button id="startButton">ゲームスタート</button>
+<button id="resetButton">もう一度遊ぶ</button>
+
+<div id="memory">
+
+    <h2>
+        📖 蘇った記憶
+    </h2>
+
+</div>
+
+
+<script>
+
+/* =================================
+   ★ここを編集するだけ！
+================================= */
+
+const memories = [
+
+    "モグラへ。",
+
+    "何年経ったんだろうな。",
+
+    "好きだ。",
+
+    "あの世に帰って。",
+
+    "お前のことが大好きだよ。",
+
+    "いつか何処かで。",
+
+    "返事をしないまま。",
+
+    "嬉しかった。"
+
+];
+
+
+/* =================================
+   ゲーム設定
+================================= */
+
+const canvas =
+    document.getElementById("game");
+
+const ctx =
+    canvas.getContext("2d");
+
+
+let ball = {
+    x: 300,
+    y: 350,
+    dx: 3,
+    dy: -3,
+    size: 7
+};
+
+
+let paddle = {
+    x: 250,
+    y: 370,
+    width: 100,
+    height: 10
+};
+
+
+let score = 0;
+let gameState = "waiting";
+
+
+/* =================================
+   ブロック
+================================= */
+
+const blocks = [];
+
+const rows = 2;
+const columns = 4;
+
+for(let r = 0; r < rows; r++){
+
+    for(let c = 0; c < columns; c++){
+
+        blocks.push({
+
+            x: 35 + c * 140,
+
+            y: 40 + r * 35,
+
+            width: 120,
+
+            height: 20,
+
+            alive: true,
+
+            memory:
+                r * columns + c
+
+        });
+
+    }
+
+}
+
+
+/* =================================
+   記憶を表示
+================================= */
+
+function showMemory(index){
+
+    const area =
+        document.getElementById("memory");
+
+    const item =
+        document.createElement("div");
+
+    item.className =
+        "memory-item";
+
+    item.textContent =
+        memories[index];
+
+    area.appendChild(item);
+
+}
+
+
+/* =================================
+   描画
+================================= */
+
+function draw(){
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    /* ボール */
+
+    ctx.beginPath();
+
+    ctx.arc(
+        ball.x,
+        ball.y,
+        ball.size,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fillStyle = "white";
+
+    ctx.fill();
+
+    ctx.closePath();
+
+
+    /* パドル */
+
+    ctx.fillStyle = "white";
+
+    ctx.fillRect(
+        paddle.x,
+        paddle.y,
+        paddle.width,
+        paddle.height
+    );
+
+
+    /* ブロック */
+
+    blocks.forEach(block => {
+
+        if(!block.alive){
+            return;
+        }
+
+        ctx.fillStyle = "#333";
+
+        ctx.fillRect(
+            block.x,
+            block.y,
+            block.width,
+            block.height
+        );
+
+        ctx.strokeStyle = "#777";
+
+        ctx.strokeRect(
+            block.x,
+            block.y,
+            block.width,
+            block.height
+        );
+
+    });
+
+}
+
+
+/* =================================
+   更新
+================================= */
+
+function update(){
+
+    if(gameState !== "playing"){
+        return;
+    }
+
+    ball.x += ball.dx;
+    ball.y += ball.dy;
+
+
+    /* 壁 */
+
+    if(
+        ball.x < 0 ||
+        ball.x > canvas.width
+    ){
+
+        ball.dx *= -1;
+
+    }
+
+
+    if(ball.y < 0){
+
+        ball.dy *= -1;
+
+    }
+
+
+    /* パドル */
+
+    if(
+
+        ball.y + ball.size >
+        paddle.y &&
+
+        ball.x > paddle.x &&
+
+        ball.x <
+        paddle.x + paddle.width
+
+    ){
+
+        ball.dy *= -1;
+
+    }
+
+
+    /* ブロック */
+
+    blocks.forEach(block => {
+
+        if(!block.alive){
+            return;
+        }
+
+
+        if(
+
+            ball.x > block.x &&
+
+            ball.x <
+            block.x + block.width &&
+
+            ball.y > block.y &&
+
+            ball.y <
+            block.y + block.height
+
+        ){
+
+            block.alive = false;
+
+            ball.dy *= -1;
+
+            score += 100;
+
+
+            /* 記憶を取得 */
+
+            showMemory(
+                block.memory
+            );
+
+
+            /* 全部のブロックを壊したらクリア */
+
+              if(blocks.every(block => !block.alive)){
+
+                gameState = "clear";
+
+                document.getElementById("message").textContent =
+                    "CLEAR!";
+
+                document.getElementById("clearVideo").style.display = "block";
+                document.getElementById("game").style.display = "none";
+
+                document.getElementById("clearVideo").currentTime = 0;
+                document.getElementById("clearVideo").play();
+
+            }
+        }
+
+    });
+
+
+    /* 下まで落ちたらゲームオーバー */
+
+    if(ball.y > canvas.height){
+
+        gameState = "gameover";
+
+        document.getElementById("message").textContent =
+            "GAME OVER";
+
+    }
+
+}
+
+
+/* =================================
+   マウス操作
+================================= */
+
+canvas.addEventListener(
+    "mousemove",
+    function(e){
+
+        const rect =
+            canvas.getBoundingClientRect();
+
+        paddle.x =
+            e.clientX -
+            rect.left -
+            paddle.width / 2;
+
+    }
+);
+
+
+/* =================================
+   スマホ操作
+================================= */
+
+canvas.addEventListener(
+    "touchmove",
+    function(e){
+
+        e.preventDefault();
+
+        const rect =
+            canvas.getBoundingClientRect();
+
+        paddle.x =
+            e.touches[0].clientX -
+            rect.left -
+            paddle.width / 2;
+
+    },
+    { passive: false }
+);
+
+
+/* =================================
+   ゲームループ
+================================= */
+
+/* =================================
+   スタートボタン
+================================= */
+
+document.getElementById("startButton").addEventListener(
+    "click",
+    function(){
+
+        gameState = "movie";
+
+        document.getElementById("message").textContent = "";
+
+        document.getElementById("startButton").style.display = "none";
+
+        const video =
+            document.getElementById("startVideo");
+
+        video.currentTime = 0;
+
+        video.play();
+
+    }
+);
+
+document.getElementById("startVideo").addEventListener(
+    "ended",
+    function(){
+
+        document.getElementById("startVideo").style.display = "none";
+
+        document.getElementById("game").style.display = "block";
+
+        gameState = "playing";
+
+    }
+);
+
+/* =================================
+   リセットボタン
+================================= */
+document.getElementById("resetButton").addEventListener(
+    "click",
+    function(){
+        /* ゲーム状態を戻す */
+        gameState = "waiting";
+
+document.getElementById("startVideo").style.display = "block";
+document.getElementById("clearVideo").style.display = "none";
+document.getElementById("game").style.display = "none";
+
+document.getElementById("startVideo").pause();
+document.getElementById("clearVideo").pause();
+
+document.getElementById("startButton").style.display = "inline-block";
+        /* ボールを初期位置に戻す */
+        ball.x = 300;
+        ball.y = 350;
+        ball.dx = 3;
+        ball.dy = -3;
+        /* 全ブロックを復活 */
+        blocks.forEach(block => {
+            block.alive = true;
+        });
+        /* メッセージを消す */
+        document.getElementById("message").textContent = "";
+        /* 蘇った記憶を消す */
+        const memoryItems =
+            document.querySelectorAll(".memory-item");
+        memoryItems.forEach(item => {
+            item.remove();
+        });
+    }
+);
+
+function gameLoop(){
+
+    draw();
+
+    update();
+
+    requestAnimationFrame(
+        gameLoop
+    );
+
+}
+
+
+gameLoop();
+
+</script>
+
+</body>
+</html>
